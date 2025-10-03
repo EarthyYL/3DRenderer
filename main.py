@@ -1,7 +1,49 @@
 import numpy as np
 import pygame 
 import tkinter as tk
-#funcitons
+faces=[]
+max_vertices=0
+filePath=r"C:\Users\yluo2\OneDrive\Documents\Python\Sphere.obj"
+with open(filePath, 'r') as file:
+    print('File Opened Successfully', flush=True)
+    for line in file:
+        if line.startswith('v '):  # vertex line
+            parts = line.strip().split()
+            vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+            vertices = vertex if 'vertices' not in locals() else np.vstack((vertices, vertex))
+        if line.startswith('vn '):  # vertex normal line
+            parts = line.strip().split()
+            normal = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+            normals = normal if 'normals' not in locals() else np.vstack((normals, normal))
+        if line.startswith('f '): # face line
+                parts = line.strip().split()[1:]
+                # parse vertex/texture/normal indices
+                face = np.full((len(parts), 3), np.nan)
+                for j, p in enumerate(parts):
+                    vals = p.split('/')
+                    #WE CONVERT TO 0-BASED INDEXING HERE
+                    face[j, 0] = int(vals[0])-1 if vals[0] else np.nan #grab indexes from face line and handle missing vals
+                    face[j, 1] = int(vals[1])-1 if len(vals) > 1 and vals[1] else np.nan #make sure not out of range
+                    face[j, 2] = int(vals[2])-1 if len(vals) > 2 and vals[2] else np.nan
+                faces.append(face) # add indices to list of faces
+                max_vertices = max(max_vertices, face.shape[0]) #track max vertices in face
+    # Convert faces list to a 3D numpy array, padding with NaNs where necessary
+    faces_array = np.full((len(faces), max_vertices, 3), np.nan)
+    for i, face in enumerate(faces): 
+        faces_array[i, :face.shape[0], :] = face #fill in face data
+    #remember, we convert from 1-based to 0-based indexing when reading
+    #1 dimension is faces, 2 dimension is each vertex in face, 3 dimension is index of v/vt/vn
+    print('File Closed Successfully', flush=True)
+try:
+    import pygame
+except ModuleNotFoundError:
+    pygame = None
+try:
+    import tkinter as tk
+except ModuleNotFoundError:
+    tk = None
+
+#functions
 def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transform func
     #create camera axes
     zCam=(lookAt-cameraPoint) 
