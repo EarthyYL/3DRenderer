@@ -10,9 +10,7 @@ try: import tkinter as tk
 except ModuleNotFoundError:
     tk = None
     print("tkinter not found, file dialogs will not work", flush=True)
-try: import time
-except ModuleNotFoundError:
-    print("time module not found, continuing", flush=True)
+import time
 debugErrors=True
 #parse obj file
 filePath=r"C:\Users\yluo2\OneDrive\Documents\Python\Sphere.obj"
@@ -52,9 +50,10 @@ with open(filePath, 'r') as file: #parser body
         faces_array[i, :face.shape[0], :] = face #fill in face data
     #remember, we convert from 1-based to 0-based indexing when reading
     #1 dimension is faces, 2 dimension is each vertex in face, 3 dimension is index of v/vt/vn
+    centerPoint=np.array([np.mean(vertices[:,0]),np.mean(vertices[:,1]),np.mean(vertices[:,2])])
     print('File Closed Successfully', flush=True)
     end_time = time.perf_counter()
-    print(f"Parse time: {end_time - start_time:.4f} seconds", flush=True)
+    print(f"{'Processing time'}: {end_time - start_time:.4f} seconds", flush=True)
 #functions
 def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transform func
     #create camera axes
@@ -72,7 +71,7 @@ def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transfo
     camPoints=rotMatrix @ transPoints.T
     camPoints=camPoints.T
     return camPoints
-def drawPoints(points, f=500): #f is focal length in pixels
+def drawPoints(points, f): #f is focal length in pixels
     screen_center_x = 640 #set center of screen this is for 1280x720
     screen_center_y = 360
     for point in points: #iterate through points
@@ -83,7 +82,7 @@ def drawPoints(points, f=500): #f is focal length in pixels
         x_screen = (x_cam / z_cam) * f + screen_center_x
         y_screen = (y_cam / z_cam) * f + screen_center_y
         try:
-            pygame.draw.circle(screen, "white", (int(x_screen), int(y_screen)), 2)
+            pygame.draw.circle(screen, "white", (int(x_screen), int(y_screen)), 2) 
         except Exception as e:
             if debugErrors:
                 print(f"Error drawing point at ({x_screen}, {y_screen}): {e}", flush=True)
@@ -146,29 +145,44 @@ def createSphere(center,radius,step):
             z = center[2] + radius * np.cos(phi)
             points.append([x, y, z])
     return np.array(points)
+def createAxes(length,step):
+    points = []
+    for i in np.arange(0, length + step, step):
+        points.append([i, 0, 0])  # X-axis
+        points.append([0, i, 0])  # Y-axis
+        points.append([0, 0, i])  # Z-axis
+    return np.array(points)
 #main
-ortho=True
 orbit=False
-#define points temp
-surfacePoints=createCube(np.array([0,0,0]),100,1)
-surfacePoints=np.vstack((surfacePoints,vertices))
-cameraPoint=np.array([10,10,50])
+axesOn=False
+boundaryCubeOn=False
+objScale=5
+drawMesh=True
+focalLength=500
+#define points
+surfacePoints=vertices*objScale
+if boundaryCubeOn:
+    cube=createCube(np.array([0,0,0]),100,1)
+    surfacePoints=np.vstack((surfacePoints,cube))
+if axesOn:
+    axes=createAxes(50,1)
+    surfacePoints=np.vstack((surfacePoints,axes))
+cameraPoint=np.array([100, 100, 100])
 cameraPoint = cameraPoint.astype(float)
-lookAt=np.array([0,0,0])
-worldUp=np.array([0,0,1])
-angle=0.0
-angleIncrement=0.5
-angleIncrement=np.radians(angleIncrement)
+lookAt=centerPoint.astype(float)
+worldUp=np.array([0,0,-1])
 dragMoveSpeed=0.01
 moveSpeed=2
 dragging=False
 zoomSpeed=0.1
+meshFill=False
 #init for orbits
 last_drag_vec = np.array([0.0, 0.0, 0.0])   # world-space drag vector
 angularVelocity = 0.0                      # radians per frame
 axisOfRot = np.array([0.0, 0.0, 1.0])       # fallback axis
 damping = 0.95                              # inertia damping per frame (0..1)
 orbitRadius = np.linalg.norm(cameraPoint - lookAt)
+shiftHeld=False
 #pygame display
 pygame.init()
 screen = pygame.display.set_mode((1280, 720))
@@ -176,9 +190,15 @@ clock = pygame.time.Clock()
 running = True
 print('Opening visualization window', flush=True)
 while running:
+    pressed = pygame.key.get_pressed()   #for holding key behavior
+    if pressed[pygame.K_LSHIFT]: #shift toggle
+        shiftHeld=True
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_LSHIFT:#shift toggle
+                shiftHeld=False
         elif event.type == pygame.MOUSEBUTTONDOWN:#start drag
             if event.button == 1:  
                 dragging = True 
@@ -193,11 +213,11 @@ while running:
                     axisOfOrbit=axisOfRot
                     orbitVelocity=angularVelocity
         elif event.type == pygame.MOUSEMOTION: #mouse drag to rotate
-            if dragging:
+            if dragging and not shiftHeld:
                 #get movement and axes of camera
                 dx,dy = event.rel #screen space drag
                 xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
-                dragWorld = dx*xCam+(-dy)*yCam #y is inverted for pygame inverted axis
+                dragWorld = -dx*xCam+(-dy)*yCam #y is inverted for pygame inverted axis
                 dragVelocity = np.linalg.norm(dragWorld)
                 dragWorld = dragWorld/dragVelocity
                 speed=np.hypot(dx,dy)
@@ -209,24 +229,58 @@ while running:
                 axisOfRot = axisOfRot/np.linalg.norm(axisOfRot)
                 #compute rotation
                 cameraPoint = rotatePoint(cameraPoint-lookAt,angularVelocity,axisOfRot)+lookAt
+            elif dragging and shiftHeld: #pan
+                dx,dy = event.rel #screen space drag
+                xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
+                cameraPoint += -dx*xCam+(-dy)*yCam #y is inverted for pygame inverted axis
+                lookAt += -dx*xCam+(-dy)*yCam
         elif event.type == pygame.MOUSEWHEEL: #zoom in/out
             if event.y == 1:
                 cameraPoint = cameraPoint - (cameraPoint - lookAt)*zoomSpeed
             elif event.y == -1:
                 cameraPoint = cameraPoint + (cameraPoint - lookAt)*zoomSpeed
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
-                angle = 0
-                cameraPoint=np.array([10,10,50])
-            if event.key == pygame.K_BACKSPACE:
+            if event.key == pygame.K_r: #reset
+                lookAt=centerPoint.astype(float)
+            if event.key == pygame.K_BACKSPACE: #close
                 running = False
+            if event.key == pygame.K_m: #toggle mesh
+                drawMesh = not drawMesh     
+    if pressed[pygame.K_d]: 
+        xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
+        cameraPoint += xCam * moveSpeed
+        lookAt += xCam * moveSpeed
+    if pressed[pygame.K_a]: 
+        xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
+        cameraPoint -= xCam * moveSpeed
+        lookAt -= xCam * moveSpeed
     screen.fill("black")
     if orbit:
         #compute rotation
         pass    
     camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
-    drawPoints(camPoints)
+    drawPoints(camPoints, focalLength)
+    if drawMesh:
+        for face in faces_array: #vertexes and the respective indices for each face
+            #index into camPoints using vertex indices to find face vertices in cam perspective
+            faceCam = camPoints[face[:, 0].astype(int)] #faceCam is now a list of coordinates x, y, z in cam space
+            if np.any(faceCam[:, 2] <= 0):  #skip faces with vertices behind camera
+                continue
+            projected = [] #reset list once a new face is chosen
+            for vertex in faceCam:
+                xCam, yCam, zCam = vertex
+                xScreen = (xCam / zCam) * focalLength + 640 #perspective projection
+                yScreen = (yCam / zCam) * focalLength + 360
+                projected.append((int(xScreen), int(yScreen)))
+            if len(projected) >= 2:
+                try:
+                    pygame.draw.polygon(screen, "grey", projected, 1)
+                except Exception as e:
+                    if debugErrors:
+                        print(f"Error drawing polygon with points {projected}: {e}", flush=True)
     pygame.display.flip()
     clock.tick(60)  #FPS limit
+    fps = int(clock.get_fps())
+    print(f"FPS: {fps}", end='\r', flush=True)
 pygame.quit()
 print("Exiting", flush=True)
