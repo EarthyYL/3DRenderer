@@ -1,32 +1,51 @@
-import numpy as np
-import pygame 
-import tkinter as tk
-faces=[]
-max_vertices=0
+try: import numpy as np
+except ModuleNotFoundError:
+    print("numpy not found, exiting", flush=True)
+    exit()
+try: import pygame
+except ModuleNotFoundError:
+    pygame = None
+    print("pygame not found, display will not work", flush=True)
+try: import tkinter as tk
+except ModuleNotFoundError:
+    tk = None
+    print("tkinter not found, file dialogs will not work", flush=True)
+try: import time
+except ModuleNotFoundError:
+    print("time module not found, continuing", flush=True)
+debugErrors=True
+#parse obj file
 filePath=r"C:\Users\yluo2\OneDrive\Documents\Python\Sphere.obj"
-with open(filePath, 'r') as file:
+with open(filePath, 'r') as file: #parser body
     print('File Opened Successfully', flush=True)
+    start_time = time.perf_counter()
+    faces=[]
+    max_vertices=0
     for line in file:
-        if line.startswith('v '):  # vertex line
-            parts = line.strip().split()
-            vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-            vertices = vertex if 'vertices' not in locals() else np.vstack((vertices, vertex))
-        if line.startswith('vn '):  # vertex normal line
-            parts = line.strip().split()
-            normal = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-            normals = normal if 'normals' not in locals() else np.vstack((normals, normal))
-        if line.startswith('f '): # face line
-                parts = line.strip().split()[1:]
-                # parse vertex/texture/normal indices
-                face = np.full((len(parts), 3), np.nan)
-                for j, p in enumerate(parts):
-                    vals = p.split('/')
-                    #WE CONVERT TO 0-BASED INDEXING HERE
-                    face[j, 0] = int(vals[0])-1 if vals[0] else np.nan #grab indexes from face line and handle missing vals
-                    face[j, 1] = int(vals[1])-1 if len(vals) > 1 and vals[1] else np.nan #make sure not out of range
-                    face[j, 2] = int(vals[2])-1 if len(vals) > 2 and vals[2] else np.nan
-                faces.append(face) # add indices to list of faces
-                max_vertices = max(max_vertices, face.shape[0]) #track max vertices in face
+        try:
+            if line.startswith('v '):  # vertex line
+                parts = line.strip().split()
+                vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                vertices = vertex if 'vertices' not in locals() else np.vstack((vertices, vertex))
+            if line.startswith('vn '):  # vertex normal line
+                parts = line.strip().split()
+                normal = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                normals = normal if 'normals' not in locals() else np.vstack((normals, normal))
+            if line.startswith('f '): # face line
+                    parts = line.strip().split()[1:]
+                    # parse vertex/texture/normal indices
+                    face = np.full((len(parts), 3), np.nan)
+                    for j, p in enumerate(parts):
+                        vals = p.split('/')
+                        #WE CONVERT TO 0-BASED INDEXING HERE
+                        face[j, 0] = int(vals[0])-1 if vals[0] else np.nan #grab indexes from face line and handle missing vals
+                        face[j, 1] = int(vals[1])-1 if len(vals) > 1 and vals[1] else np.nan #make sure not out of range
+                        face[j, 2] = int(vals[2])-1 if len(vals) > 2 and vals[2] else np.nan
+                    faces.append(face) # add indices to list of faces
+                    max_vertices = max(max_vertices, face.shape[0]) #track max vertices in face
+        except Exception as e:
+            if debugErrors:
+                print(f"Error parsing line: {line.strip()} - {e}", flush=True)
     # Convert faces list to a 3D numpy array, padding with NaNs where necessary
     faces_array = np.full((len(faces), max_vertices, 3), np.nan)
     for i, face in enumerate(faces): 
@@ -34,15 +53,8 @@ with open(filePath, 'r') as file:
     #remember, we convert from 1-based to 0-based indexing when reading
     #1 dimension is faces, 2 dimension is each vertex in face, 3 dimension is index of v/vt/vn
     print('File Closed Successfully', flush=True)
-try:
-    import pygame
-except ModuleNotFoundError:
-    pygame = None
-try:
-    import tkinter as tk
-except ModuleNotFoundError:
-    tk = None
-
+    end_time = time.perf_counter()
+    print(f"Parse time: {end_time - start_time:.4f} seconds", flush=True)
 #functions
 def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transform func
     #create camera axes
@@ -60,11 +72,21 @@ def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transfo
     camPoints=rotMatrix @ transPoints.T
     camPoints=camPoints.T
     return camPoints
-def drawPoints(points):
-    for point in points:
-        x=point[0]*10+640
-        y=point[1]*10+360
-        pygame.draw.circle(screen,"white",(int(x),int(y)),2)
+def drawPoints(points, f=500): #f is focal length in pixels
+    screen_center_x = 640 #set center of screen this is for 1280x720
+    screen_center_y = 360
+    for point in points: #iterate through points
+        x_cam, y_cam, z_cam = point
+        if z_cam <= 0:  # clip points behind camera and off screen
+            continue
+        # perspective projection
+        x_screen = (x_cam / z_cam) * f + screen_center_x
+        y_screen = (y_cam / z_cam) * f + screen_center_y
+        try:
+            pygame.draw.circle(screen, "white", (int(x_screen), int(y_screen)), 2)
+        except Exception as e:
+            if debugErrors:
+                print(f"Error drawing point at ({x_screen}, {y_screen}): {e}", flush=True)
 def simpleRotation(camera,angle,center,orbitRadius):
     camera[0]=orbitRadius*np.cos(angle)+center[0]
     camera[1]=orbitRadius*np.sin(angle)+center[1]
@@ -115,7 +137,6 @@ def rotatePoint(point,angle,axis):
     return (point * cos_a +
             np.cross(axis, point) * sin_a +
             axis * np.dot(axis, point) * (1 - cos_a))
-#shapes
 def createSphere(center,radius,step):
     points = []
     for phi in np.arange(0, np.pi + step, step):  # polar angle
@@ -129,7 +150,8 @@ def createSphere(center,radius,step):
 ortho=True
 orbit=False
 #define points temp
-surfacePoints=createCube(np.array([0,0,0]),10,0.10)
+surfacePoints=createCube(np.array([0,0,0]),100,1)
+surfacePoints=np.vstack((surfacePoints,vertices))
 cameraPoint=np.array([10,10,50])
 cameraPoint = cameraPoint.astype(float)
 lookAt=np.array([0,0,0])
@@ -140,12 +162,10 @@ angleIncrement=np.radians(angleIncrement)
 dragMoveSpeed=0.01
 moveSpeed=2
 dragging=False
-orbitRadius = np.linalg.norm(cameraPoint - lookAt)
-angleX=0.0
-angleY=0.0
+zoomSpeed=0.1
 #init for orbits
 last_drag_vec = np.array([0.0, 0.0, 0.0])   # world-space drag vector
-angular_velocity = 0.0                      # radians per frame
+angularVelocity = 0.0                      # radians per frame
 axisOfRot = np.array([0.0, 0.0, 1.0])       # fallback axis
 damping = 0.95                              # inertia damping per frame (0..1)
 orbitRadius = np.linalg.norm(cameraPoint - lookAt)
@@ -154,15 +174,16 @@ pygame.init()
 screen = pygame.display.set_mode((1280, 720))
 clock = pygame.time.Clock()
 running = True
+print('Opening visualization window', flush=True)
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.MOUSEBUTTONDOWN:
+        elif event.type == pygame.MOUSEBUTTONDOWN:#start drag
             if event.button == 1:  
                 dragging = True 
                 orbit=False   
-        elif event.type == pygame.MOUSEBUTTONUP:
+        elif event.type == pygame.MOUSEBUTTONUP: #stop drag
             if event.button == 1:
                 dragging=False  
                 if angularVelocity <= 1e-6:
@@ -171,12 +192,12 @@ while running:
                     orbit = True
                     axisOfOrbit=axisOfRot
                     orbitVelocity=angularVelocity
-        elif event.type == pygame.MOUSEMOTION:
+        elif event.type == pygame.MOUSEMOTION: #mouse drag to rotate
             if dragging:
                 #get movement and axes of camera
                 dx,dy = event.rel #screen space drag
                 xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
-                dragWorld = dx*xCam+(dy)*yCam
+                dragWorld = dx*xCam+(-dy)*yCam #y is inverted for pygame inverted axis
                 dragVelocity = np.linalg.norm(dragWorld)
                 dragWorld = dragWorld/dragVelocity
                 speed=np.hypot(dx,dy)
@@ -188,10 +209,17 @@ while running:
                 axisOfRot = axisOfRot/np.linalg.norm(axisOfRot)
                 #compute rotation
                 cameraPoint = rotatePoint(cameraPoint-lookAt,angularVelocity,axisOfRot)+lookAt
+        elif event.type == pygame.MOUSEWHEEL: #zoom in/out
+            if event.y == 1:
+                cameraPoint = cameraPoint - (cameraPoint - lookAt)*zoomSpeed
+            elif event.y == -1:
+                cameraPoint = cameraPoint + (cameraPoint - lookAt)*zoomSpeed
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_r:
                 angle = 0
                 cameraPoint=np.array([10,10,50])
+            if event.key == pygame.K_BACKSPACE:
+                running = False
     screen.fill("black")
     if orbit:
         #compute rotation
@@ -201,3 +229,4 @@ while running:
     pygame.display.flip()
     clock.tick(60)  #FPS limit
 pygame.quit()
+print("Exiting", flush=True)
