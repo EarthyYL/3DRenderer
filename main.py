@@ -11,9 +11,25 @@ except ModuleNotFoundError:
     tk = None
     print("tkinter not found, file dialogs will not work", flush=True)
 import time
+from tkinter.filedialog import askopenfilename
 debugErrors=True
+def fileBrowse(): #file dialog function
+    global filePath
+    filePath = askopenfilename()
+    if filePath:
+        if filePath.lower().endswith('.obj'):
+            button.config(text=filePath)
+            close=tk.Button(root,text="Render",command=root.destroy)
+            close.pack(pady=10)
+        else:
+            button.config(text="File must be .obj")
+#tkinter root for file dialog
+root=tk.Tk()
+button=tk.Button(root,text="Browse for OBJ file",command=fileBrowse)
+button.pack(pady=20)
+root.mainloop()
 #parse obj file
-filePath=r"C:\Users\yluo2\OneDrive\Documents\Python\Sphere.obj"
+#filePath=r"C:\Users\yluo2\OneDrive\Documents\Python\Sphere.obj"
 with open(filePath, 'r') as file: #parser body
     print('File Opened Successfully', flush=True)
     start_time = time.perf_counter()
@@ -157,7 +173,7 @@ orbit=False
 axesOn=False
 boundaryCubeOn=False
 objScale=5
-drawMesh=True
+drawMesh=False
 focalLength=500
 #define points
 surfacePoints=vertices*objScale
@@ -257,9 +273,10 @@ while running:
     screen.fill("black")
     if orbit:
         #compute rotation
-        pass    
-    camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
-    drawPoints(camPoints, focalLength)
+        pass  
+    if not drawMesh:  
+        camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
+        drawPoints(camPoints, focalLength)
     if drawMesh:
         for face in faces_array: #vertexes and the respective indices for each face
             #index into camPoints using vertex indices to find face vertices in cam perspective
