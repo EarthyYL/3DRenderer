@@ -12,6 +12,7 @@ except ModuleNotFoundError:
     print("tkinter not found, file dialogs will not work", flush=True)
 import time
 from tkinter.filedialog import askopenfilename
+import debug_tools
 debugErrors=True
 def fileBrowse(): #file dialog function
     global filePath
@@ -29,12 +30,11 @@ button=tk.Button(root,text="Browse for OBJ file",command=fileBrowse)
 button.pack(pady=20)
 root.mainloop()
 #parse obj file
-#filePath=r"C:\Users\yluo2\OneDrive\Documents\Python\Sphere.obj"
 with open(filePath, 'r') as file: #parser body
     print('File Opened Successfully', flush=True)
-    start_time = time.perf_counter()
+    startTime = time.perf_counter()
     faces=[]
-    max_vertices=0
+    maxVertices=0
     for line in file:
         try:
             if line.startswith('v '):  # vertex line
@@ -56,20 +56,21 @@ with open(filePath, 'r') as file: #parser body
                         face[j, 1] = int(vals[1])-1 if len(vals) > 1 and vals[1] else np.nan #make sure not out of range
                         face[j, 2] = int(vals[2])-1 if len(vals) > 2 and vals[2] else np.nan
                     faces.append(face) # add indices to list of faces
-                    max_vertices = max(max_vertices, face.shape[0]) #track max vertices in face
+                    maxVertices = max(maxVertices, face.shape[0]) #track max vertices in face
         except Exception as e:
             if debugErrors:
                 print(f"Error parsing line: {line.strip()} - {e}", flush=True)
     # Convert faces list to a 3D numpy array, padding with NaNs where necessary
-    faces_array = np.full((len(faces), max_vertices, 3), np.nan)
+    facesArray = np.full((len(faces), maxVertices, 3), np.nan)
     for i, face in enumerate(faces): 
-        faces_array[i, :face.shape[0], :] = face #fill in face data
+        facesArray[i, :face.shape[0], :] = face #fill in face data
     #remember, we convert from 1-based to 0-based indexing when reading
     #1 dimension is faces, 2 dimension is each vertex in face, 3 dimension is index of v/vt/vn
-    centerPoint=np.array([np.mean(vertices[:,0]),np.mean(vertices[:,1]),np.mean(vertices[:,2])])
+    centerPoint=np.array([np.mean(vertices[:,0]),np.mean(vertices[:,1]),np.mean(vertices[:,2])]) #find center of object
     print('File Closed Successfully', flush=True)
-    end_time = time.perf_counter()
-    print(f"{'Processing time'}: {end_time - start_time:.4f} seconds", flush=True)
+    endTime = time.perf_counter()
+    print(f"{'Processing time'}: {endTime - startTime:.4f} seconds", flush=True)
+debug_tools.writeFacesArrayToFile(facesArray, "tmp.txt") #write faces array to file for debugging
 #functions
 def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transform func
     #create camera axes
@@ -170,20 +171,22 @@ def createAxes(length,step):
     return np.array(points)
 #main
 orbit=False
-axesOn=False
+axesOn=True
 boundaryCubeOn=False
 objScale=5
 drawMesh=False
 focalLength=500
 #define points
 surfacePoints=vertices*objScale
+rotationMatrix90DegX=np.array([[1,0,0],[0, 0, -1],[0,1,0]]) #rotate 90 deg around x axis to convert from obj coord system to standard
+surfacePoints=surfacePoints @ rotationMatrix90DegX.T
 if boundaryCubeOn:
     cube=createCube(np.array([0,0,0]),100,1)
     surfacePoints=np.vstack((surfacePoints,cube))
 if axesOn:
     axes=createAxes(50,1)
     surfacePoints=np.vstack((surfacePoints,axes))
-cameraPoint=np.array([100, 100, 100])
+cameraPoint=np.array([50, 1, 100]) + centerPoint
 cameraPoint = cameraPoint.astype(float)
 lookAt=centerPoint.astype(float)
 worldUp=np.array([0,0,-1])
@@ -196,7 +199,7 @@ meshFill=False
 last_drag_vec = np.array([0.0, 0.0, 0.0])   # world-space drag vector
 angularVelocity = 0.0                      # radians per frame
 axisOfRot = np.array([0.0, 0.0, 1.0])       # fallback axis
-damping = 0.95                              # inertia damping per frame (0..1)
+damping = 0.95                              # inertia damping per frame (0..1) (unused)
 orbitRadius = np.linalg.norm(cameraPoint - lookAt)
 shiftHeld=False
 #pygame display
@@ -245,6 +248,7 @@ while running:
                 axisOfRot = axisOfRot/np.linalg.norm(axisOfRot)
                 #compute rotation
                 cameraPoint = rotatePoint(cameraPoint-lookAt,angularVelocity,axisOfRot)+lookAt
+                worldUp = rotatePoint(worldUp,angularVelocity,axisOfRot)
             elif dragging and shiftHeld: #pan
                 dx,dy = event.rel #screen space drag
                 xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
@@ -274,14 +278,15 @@ while running:
     if orbit:
         #compute rotation
         pass  
+    camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
     if not drawMesh:  
-        camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
         drawPoints(camPoints, focalLength)
     if drawMesh:
-        for face in faces_array: #vertexes and the respective indices for each face
+        for face in facesArray: #vertexes and the respective indices for each face
             #index into camPoints using vertex indices to find face vertices in cam perspective
-            faceCam = camPoints[face[:, 0].astype(int)] #faceCam is now a list of coordinates x, y, z in cam space
-            if np.any(faceCam[:, 2] <= 0):  #skip faces with vertices behind camera
+            validIndices = face[:, 0][~np.isnan(face[:, 0])].astype(int) #filters out NaNs and converts to int
+            faceCam = camPoints[validIndices] #faceCam is now a list of coordinates x, y, z in cam space
+            if (np.any(faceCam[:, 2] <= 0)) | (len(validIndices)<=2):  #skip faces with vertices behind camera
                 continue
             projected = [] #reset list once a new face is chosen
             for vertex in faceCam:
