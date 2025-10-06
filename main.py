@@ -14,6 +14,7 @@ import time
 from tkinter.filedialog import askopenfilename
 import debug_tools
 debugErrors=True
+debugLogs=False
 def fileBrowse(): #file dialog function
     global filePath
     filePath = askopenfilename()
@@ -28,13 +29,13 @@ def fileBrowse(): #file dialog function
 root=tk.Tk()
 button=tk.Button(root,text="Browse for OBJ file",command=fileBrowse)
 button.pack(pady=20)
-cullOn =tk.IntVar()
-cullOn.set(True)
-cullButton=tk.Checkbutton(root, text="Enable Culling", variable=cullOn)
-cullButton.pack()
+lightingOn =tk.IntVar()
+lightingOn.set(True)
+lightButton=tk.Checkbutton(root, text="Enable Lighting", variable=lightingOn)
+lightButton.pack()
 root.mainloop()
 #parse obj file
-cullOn=cullOn.get()
+lightingOn=lightingOn.get()
 with open(filePath, 'r') as file: #parser body
     print('File Opened Successfully', flush=True)
     startTime = time.perf_counter()
@@ -75,7 +76,8 @@ with open(filePath, 'r') as file: #parser body
     print('File Closed Successfully', flush=True)
     endTime = time.perf_counter()
     print(f"{'Processing time'}: {endTime - startTime:.4f} seconds", flush=True)
-debug_tools.writeFacesArrayToFile(facesArray, "debug_output.txt") #write faces array to file for debugging
+if debugLogs:
+    debug_tools.writeFacesArrayToFile(facesArray, "debug_output.txt") #write faces array to file for debugging
 #functions
 def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transform func
     #create camera axes
@@ -199,6 +201,10 @@ meshFill = False
 axisOfRot = np.array([0.0, 0.0, 1.0])       # fallback axis
 shiftHeld = False
 lightSource = [1, 0, 0]
+if lightingOn:
+    cullOn=True
+else:
+    cullOn=False
 #pygame display
 pygame.init()
 screen = pygame.display.set_mode((1280, 720))
@@ -308,13 +314,14 @@ while running:
             if len(projected) >= 2:
                 lightIntensity=np.dot(faceNormal, lightSource)
                 color = [int(lightIntensity * 255)] * 3
-                if lightIntensity>0:
-                    #draw 
-                    try:
+                try:
+                    if (lightIntensity>0) & lightingOn:
                         pygame.draw.polygon(screen,color, projected)
-                    except Exception as e:
-                        if debugErrors and not e == ValueError:
-                            print(f"Error drawing polygon with points {projected} and color {color}: {e}", flush=True)
+                    elif not lightingOn:
+                        pygame.draw.polygon(screen,"grey",projected,1)
+                except Exception as e:
+                    if debugErrors and not e == ValueError:
+                        print(f"Error drawing polygon with points {projected} and color {color}: {e}", flush=True)
     pygame.display.flip()
     clock.tick(60)  #FPS limit
     fps = int(clock.get_fps())
