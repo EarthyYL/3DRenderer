@@ -103,10 +103,6 @@ def drawPoints(points, f): #f is focal length in pixels
         except Exception as e:
             if debugErrors:
                 print(f"Error drawing point at ({x_screen}, {y_screen}): {e}", flush=True)
-def simpleRotation(camera,angle,center,orbitRadius):
-    camera[0]=orbitRadius*np.cos(angle)+center[0]
-    camera[1]=orbitRadius*np.sin(angle)+center[1]
-    return camera.astype(float)
 def createCube(center,sideLength,step):
     halfSide=sideLength/2
     sideLow=center[0]-halfSide
@@ -169,6 +165,7 @@ def createAxes(length,step):
         points.append([0, i, 0])  # Y-axis
         points.append([0, 0, i])  # Z-axis
     return np.array(points)
+    
 #main
 orbit=False
 axesOn=True
@@ -176,6 +173,7 @@ boundaryCubeOn=False
 objScale=5
 drawMesh=False
 focalLength=500
+cullOn=True
 #define points
 surfacePoints=vertices*objScale
 rotationMatrix90DegX=np.array([[1,0,0],[0, 0, -1],[0,1,0]]) #rotate 90 deg around x axis to convert from obj coord system to standard
@@ -186,7 +184,7 @@ if boundaryCubeOn:
 if axesOn:
     axes=createAxes(50,1)
     surfacePoints=np.vstack((surfacePoints,axes))
-cameraPoint=np.array([50, 1, 100]) + centerPoint
+cameraPoint=np.array([50, 50, 100]) + centerPoint
 cameraPoint = cameraPoint.astype(float)
 lookAt=centerPoint.astype(float)
 worldUp=np.array([0,0,-1])
@@ -210,6 +208,7 @@ running = True
 print('Opening visualization window', flush=True)
 while running:
     pressed = pygame.key.get_pressed()   #for holding key behavior
+    xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
     if pressed[pygame.K_LSHIFT]: #shift toggle
         shiftHeld=True
     for event in pygame.event.get():
@@ -251,7 +250,6 @@ while running:
                 worldUp = rotatePoint(worldUp,angularVelocity,axisOfRot)
             elif dragging and shiftHeld: #pan
                 dx,dy = event.rel #screen space drag
-                xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
                 cameraPoint += -dx*xCam+(-dy)*yCam #y is inverted for pygame inverted axis
                 lookAt += -dx*xCam+(-dy)*yCam
         elif event.type == pygame.MOUSEWHEEL: #zoom in/out
@@ -279,6 +277,7 @@ while running:
         #compute rotation
         pass  
     camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
+    
     if not drawMesh:  
         drawPoints(camPoints, focalLength)
     if drawMesh:
@@ -286,13 +285,21 @@ while running:
             #index into camPoints using vertex indices to find face vertices in cam perspective
             validIndices = face[:, 0][~np.isnan(face[:, 0])].astype(int) #filters out NaNs and converts to int
             faceCam = camPoints[validIndices] #faceCam is now a list of coordinates x, y, z in cam space
+            # compute face normal in camera space
+            v1 = faceCam[1] - faceCam[0]
+            v2 = faceCam[2] - faceCam[0]
+            faceNormal = np.cross(v1, v2)
+            faceNormal = faceNormal / np.linalg.norm(faceNormal)
+            #cull if facing away
+            if cullOn and faceNormal[2] >= 0:
+                continue
             if (np.any(faceCam[:, 2] <= 0)) | (len(validIndices)<=2):  #skip faces with vertices behind camera
                 continue
             projected = [] #reset list once a new face is chosen
             for vertex in faceCam:
-                xCam, yCam, zCam = vertex
-                xScreen = (xCam / zCam) * focalLength + 640 #perspective projection
-                yScreen = (yCam / zCam) * focalLength + 360
+                xVertexCam, yVertexCam, zVertexCam = vertex
+                xScreen = (xVertexCam / zVertexCam) * focalLength + 640 #perspective projection
+                yScreen = (yVertexCam / zVertexCam) * focalLength + 360
                 projected.append((int(xScreen), int(yScreen)))
             if len(projected) >= 2:
                 try:
