@@ -5,6 +5,7 @@ Add different culling option for non-enclosed objects
 Add basic lighting (calculate from normals?)
 Try to improve performance when handling objects with many many vertices
 Transparent view?
+Experiment with spherical coordinates and/or quaternion rotation 
 Consider adding different file types
 
 
