@@ -1,0 +1,21 @@
+To do (10/6):
+Add different culling option for non-enclosed objects
+Make it so that you rotate around the object instead of feeling like the object rotates on a point 
+(comes from mixing world-view lighting vector and camera-view face normal vectors)
+Find a way to deal with objects that have multiple layers below the camera (better culling again)
+Try to improve performance when handling objects with many many vertices
+Transparent view?
+Clean up functions, organizational overhaul
+Turn toggle values inside code to GUI-togglable features
+Experiment with spherical coordinates and/or quaternion rotation 
+Consider adding different file types
+
+
+Changelog 
+10/4:
+Fixed camera getting stuck with mesh on
+10/5:
+Fixed gimbal lock, fixed object orientation
+10/6:
+Added simple culling algorithm
+Added primitive lighting
