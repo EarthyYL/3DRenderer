@@ -4,6 +4,7 @@ Make it so that you rotate around the object instead of feeling like the object 
 (comes from mixing world-view lighting vector and camera-view face normal vectors)
 Find a way to deal with objects that have multiple layers below the camera (better culling again)
 Try to improve performance when handling objects with many many vertices
+Add free-fly control scheme
 Transparent view?
 Clean up functions, organizational overhaul
 Turn toggle values inside code to GUI-togglable features
