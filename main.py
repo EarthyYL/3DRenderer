@@ -70,7 +70,7 @@ with open(filePath, 'r') as file: #parser body
     print('File Closed Successfully', flush=True)
     endTime = time.perf_counter()
     print(f"{'Processing time'}: {endTime - startTime:.4f} seconds", flush=True)
-debug_tools.writeFacesArrayToFile(facesArray, "tmp.txt") #write faces array to file for debugging
+debug_tools.writeFacesArrayToFile(facesArray, "debug_output.txt") #write faces array to file for debugging
 #functions
 def worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp): #coordinate transform func
     #create camera axes
