@@ -28,8 +28,13 @@ def fileBrowse(): #file dialog function
 root=tk.Tk()
 button=tk.Button(root,text="Browse for OBJ file",command=fileBrowse)
 button.pack(pady=20)
+cullOn =tk.IntVar()
+cullOn.set(True)
+cullButton=tk.Checkbutton(root, text="Enable Culling", variable=cullOn)
+cullButton.pack()
 root.mainloop()
 #parse obj file
+cullOn=cullOn.get()
 with open(filePath, 'r') as file: #parser body
     print('File Opened Successfully', flush=True)
     startTime = time.perf_counter()
@@ -140,7 +145,6 @@ def getAxes(cameraPoint,lookAt,worldUp):
     xCam=xCam/np.linalg.norm(xCam) #x axis of camera
     yCam=np.cross(zCam,xCam)
     yCam=yCam/np.linalg.norm(yCam) #y axis of camera
-    
     return xCam,yCam,zCam
 def rotatePoint(point,angle,axis):
     axis = axis / np.linalg.norm(axis)        # ensure normalized
@@ -167,13 +171,12 @@ def createAxes(length,step):
     return np.array(points)
     
 #main
-orbit=False
+orbit=False #unimplemented: keep rotational inertia on mouse release THIS IS NOT A TOGGLE THIS IS AN INITILIZATION
 axesOn=True
 boundaryCubeOn=False
 objScale=5
 drawMesh=False
 focalLength=500
-cullOn=True
 #define points
 surfacePoints=vertices*objScale
 rotationMatrix90DegX=np.array([[1,0,0],[0, 0, -1],[0,1,0]]) #rotate 90 deg around x axis to convert from obj coord system to standard
@@ -186,20 +189,16 @@ if axesOn:
     surfacePoints=np.vstack((surfacePoints,axes))
 cameraPoint=np.array([50, 50, 100]) + centerPoint
 cameraPoint = cameraPoint.astype(float)
-lookAt=centerPoint.astype(float)
-worldUp=np.array([0,0,-1])
-dragMoveSpeed=0.01
-moveSpeed=2
-dragging=False
-zoomSpeed=0.1
-meshFill=False
-#init for orbits
-last_drag_vec = np.array([0.0, 0.0, 0.0])   # world-space drag vector
-angularVelocity = 0.0                      # radians per frame
+lookAt = centerPoint.astype(float)
+worldUp = np.array([0,0,-1])
+dragMoveSpeed = 0.01
+moveSpeed = 2
+dragging = False
+zoomSpeed = 0.1
+meshFill = False
 axisOfRot = np.array([0.0, 0.0, 1.0])       # fallback axis
-damping = 0.95                              # inertia damping per frame (0..1) (unused)
-orbitRadius = np.linalg.norm(cameraPoint - lookAt)
-shiftHeld=False
+shiftHeld = False
+lightSource = [1, 0, 0]
 #pygame display
 pygame.init()
 screen = pygame.display.set_mode((1280, 720))
@@ -272,44 +271,53 @@ while running:
         xCam, yCam, zCam = getAxes(cameraPoint,lookAt,worldUp)
         cameraPoint -= xCam * moveSpeed
         lookAt -= xCam * moveSpeed
-    screen.fill("black")
-    if orbit:
-        #compute rotation
-        pass  
+    screen.fill("black")  
     camPoints = worldToCamera(surfacePoints,cameraPoint,lookAt,worldUp)
-    
+    if orbit:
+        pass
     if not drawMesh:  
         drawPoints(camPoints, focalLength)
     if drawMesh:
         for face in facesArray: #vertexes and the respective indices for each face
-            #index into camPoints using vertex indices to find face vertices in cam perspective
+            #select valid indices and select the correct points in camera perspective
+
             validIndices = face[:, 0][~np.isnan(face[:, 0])].astype(int) #filters out NaNs and converts to int
-            faceCam = camPoints[validIndices] #faceCam is now a list of coordinates x, y, z in cam space
+            faceCam = camPoints[validIndices] #faceCam is a list of coordinates x, y, z in cam space
+
             # compute face normal in camera space
             v1 = faceCam[1] - faceCam[0]
             v2 = faceCam[2] - faceCam[0]
             faceNormal = np.cross(v1, v2)
             faceNormal = faceNormal / np.linalg.norm(faceNormal)
-            #cull if facing away
+
+            #cull if facing away and skip faces w vertices behind camera
             if cullOn and faceNormal[2] >= 0:
                 continue
-            if (np.any(faceCam[:, 2] <= 0)) | (len(validIndices)<=2):  #skip faces with vertices behind camera
+            if (np.any(faceCam[:, 2] <= 0)) | (len(validIndices)<=2): 
                 continue
+
+            #perspective projcetion 
             projected = [] #reset list once a new face is chosen
             for vertex in faceCam:
                 xVertexCam, yVertexCam, zVertexCam = vertex
-                xScreen = (xVertexCam / zVertexCam) * focalLength + 640 #perspective projection
+                xScreen = (xVertexCam / zVertexCam) * focalLength + 640
                 yScreen = (yVertexCam / zVertexCam) * focalLength + 360
                 projected.append((int(xScreen), int(yScreen)))
+            
+            #check for validity again, and calculate lighting
             if len(projected) >= 2:
-                try:
-                    pygame.draw.polygon(screen, "grey", projected, 1)
-                except Exception as e:
-                    if debugErrors:
-                        print(f"Error drawing polygon with points {projected}: {e}", flush=True)
+                lightIntensity=np.dot(faceNormal, lightSource)
+                color = [int(lightIntensity * 255)] * 3
+                if lightIntensity>0:
+                    #draw 
+                    try:
+                        pygame.draw.polygon(screen,color, projected)
+                    except Exception as e:
+                        if debugErrors and not e == ValueError:
+                            print(f"Error drawing polygon with points {projected} and color {color}: {e}", flush=True)
     pygame.display.flip()
     clock.tick(60)  #FPS limit
     fps = int(clock.get_fps())
-    print(f"FPS: {fps}", end='\r', flush=True)
+    print(f"FPS: {fps}", end='\r', flush = True)
 pygame.quit()
 print("Exiting", flush=True)
