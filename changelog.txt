@@ -6,10 +6,10 @@ Find a way to deal with objects that have multiple layers below the camera (bett
 Try to improve performance when handling objects with many many vertices
 Add free-fly control scheme
 Transparent view?
-Clean up functions, organizational overhaul
-Turn toggle values inside code to GUI-togglable features
+Clean up functions, organizational overhaul (1/2 done)
 Experiment with spherical coordinates and/or quaternion rotation 
 Consider adding different file types
+Add option to change values after program is running by opening settings GUI
 
 
 Changelog 
@@ -20,3 +20,4 @@ Fixed gimbal lock, fixed object orientation
 10/6:
 Added simple culling algorithm
 Added primitive lighting
+Cleaned up code, updated GUI
