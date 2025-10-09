@@ -8,9 +8,10 @@ except Exception as e:
     print(f'Error while importing modules: {e}, exiting', flush=True)
     exit()
 
-# my files
+# folder files
 import tools.debug_tools as debug_tools
 import tools.parse_tools as parse_tools
+import tools.camera_tools as camera _tools
 
 debugErrors = True
 debugLogs = False
@@ -39,10 +40,13 @@ root.mainloop()
 lightingOn = lightingOn.get()
 
 ##PARSE THE FILE
-vertices, normals, facesArray, centerPoint = parse_tools.parseOBJFile(
-    filePath, debugErrors
-)
-
+try:
+    vertices, normals, facesArray, centerPoint = parse_tools.parseOBJFile(
+        filePath, debugErrors
+    )
+except Exception as e:
+    print(f"File error: {e}, exiting")
+    exit()
 if debugLogs:
     debug_tools.writeFacesArrayToFile(
         facesArray, 'debug_output.txt'
@@ -180,7 +184,7 @@ dragMoveSpeed = 0.01
 panMoveSpeed = 2
 zoomSpeed = 0.1
 lightSource = [1, 0, 0]
-
+cullAdv = True
 
 #non configuration initliazation
 surfacePoints = vertices * objScale
@@ -306,7 +310,6 @@ while running:
             faceCam = camPoints[
                 validIndices
             ]   # faceCam is a list of coordinates x, y, z in cam space
-
             # compute face normal in camera space
             v1 = faceCam[1] - faceCam[0]
             v2 = faceCam[2] - faceCam[0]
