@@ -7,7 +7,7 @@ Try to improve performance when handling objects with many many vertices
 Add free-fly control scheme
 Transparent view?
 Clean up functions, organizational overhaul (1/2 done)
-Experiment with spherical coordinates and/or quaternion rotation 
+Experiment with spherical coordinates and/or quaternion rotation  (not working so far, finding other stuff works fine though)
 Consider adding different file types
 Add option to change values after program is running by opening settings GUI
 
@@ -21,3 +21,8 @@ Fixed gimbal lock, fixed object orientation
 Added simple culling algorithm
 Added primitive lighting
 Cleaned up code, updated GUI
+10/8:
+Even more refactoring, experimented with coordinate system and movement control
+Locked axes to camera look-at point
+Added camera rotation with A/D in the pan/rotate movement system
+Set framework to add free fly control scheme
