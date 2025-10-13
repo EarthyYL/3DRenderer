@@ -27,3 +27,5 @@ Locked axes to camera look-at point
 Added camera rotation with A/D in the pan/rotate movement system
 Set framework to add free fly control scheme
 10/12:
+Implemented painter's algorithm for proper rendering of more complex structures
+Began the process of optimizing rendering processes
