@@ -26,3 +26,4 @@ Even more refactoring, experimented with coordinate system and movement control
 Locked axes to camera look-at point
 Added camera rotation with A/D in the pan/rotate movement system
 Set framework to add free fly control scheme
+10/12:

@@ -3,6 +3,7 @@ try:
     import numpy as np
     import pygame
     import tkinter as tk
+    import time
     from tkinter.filedialog import askopenfilename
 except Exception as e:
     print(f'Error while importing modules: {e}, exiting', flush=True)
@@ -87,7 +88,6 @@ def createAxes(length, step, centerPoint):
 
 
 #--CONFIG--#
-orbit = False   # unimplemented: keep rotational inertia on mouse release THIS IS NOT A TOGGLE THIS IS AN INITILIZATION
 axesOn = True
 boundaryCubeOn = False
 objScale = 5
@@ -98,7 +98,7 @@ panMoveSpeed = 2
 zoomSpeed = 0.1
 rotateSpeed = 5 #deg per frame
 lightSource = [1, 0, 0]
-cullAdv = True
+timingPrintOut = True
 
 #non configuration initliazation
 surfacePoints = vertices * objScale
@@ -123,7 +123,9 @@ dragging = False
 shiftHeld = False
 movementScheme = 1
 rotateAndPan = 1
+freeFly = 2
 angleCamTilt = 0
+frameCount= 0
 # pygame display
 pygame.init()
 screen = pygame.display.set_mode((1280, 720))
@@ -131,6 +133,9 @@ clock = pygame.time.Clock()
 running = True
 print('Opening visualization window', flush=True)
 while running:
+    # -- input handling --
+    frameStart = time.perf_counter()
+    t0 = time.perf_counter()
     pressed = pygame.key.get_pressed()   # for holding key behavior
     xCam, yCam, zCam = getAxes(cameraPoint, lookAt, worldUp)
     if pressed[pygame.K_LSHIFT]:   # shift toggle
@@ -149,6 +154,10 @@ while running:
                 running = False
             if event.key == pygame.K_m:   # toggle mesh
                 drawMesh = not drawMesh
+            if event.key == pygame.K_1:
+                movementScheme = rotateAndPan
+            if event.key == pygame.K_2:
+                movementScheme = freeFly
         if movementScheme == rotateAndPan: # all controls for this scheme are in here
             if event.type == pygame.MOUSEBUTTONDOWN:  # start drag
                     if event.button == 1:
@@ -207,13 +216,17 @@ while running:
             angleCamTilt += np.deg2rad(rotateSpeed)
         if pressed[pygame.K_a]:
             angleCamTilt -= np.deg2rad(rotateSpeed)
-
+    
+    ## -- rendering -- ##
+    inputTime = time.perf_counter() - t0
+    t1 = time.perf_counter()
     screen.fill('black')
     camPoints = render_tools.worldToCamera(surfacePoints, cameraPoint, lookAt, worldUp)
+    if timingPrintOut:
+        transformTime = time.perf_counter() - t1
+        t2 = time.perf_counter()
     if abs(angleCamTilt)>=1e-4:
         camPoints = render_tools.twoDimRot(camPoints,angleCamTilt)
-    if orbit:
-        pass
     if not drawMesh:
         render_tools.drawPoints(camPoints, focalLength, screen, debugErrors)
         axesCam=render_tools.worldToCamera(axes, cameraPoint, lookAt, worldUp)
@@ -221,55 +234,68 @@ while running:
             axesCam = render_tools.twoDimRot(axesCam,angleCamTilt)
         render_tools.drawPoints(axesCam, focalLength, screen, debugErrors)
     if drawMesh:
-        for (
-            face
-        ) in facesArray:   # vertexes and the respective indices for each face
-            # select valid indices and select the correct points in camera perspective
+        #sort faces by Z so it renders in order
+        facesSorted = render_tools.sortFacesByDepth(facesArray, camPoints)
+        # perspective projection
+        camZs = camPoints[:, 2]
+        validMask = camZs > 0
+        xScreen = (camPoints[:, 0] / camZs) * focalLength + 640
+        yScreen = (camPoints[:, 1] / camZs) * focalLength + 360
+        projectedPointsXY = np.stack([xScreen, yScreen], axis=1).astype(int)
+    
+        for face in facesSorted: 
+            validIndices = face[:, 0][~np.isnan(face[:, 0])].astype(int)
+            if len(validIndices) < 3:
+                continue
+            faceCam = camPoints[validIndices]
+            #compute face normal in camera space
 
-            validIndices = face[:, 0][~np.isnan(face[:, 0])].astype(
-                int
-            )   # filters out NaNs and converts to int
-            faceCam = camPoints[
-                validIndices
-            ]   # faceCam is a list of coordinates x, y, z in cam space
-            # compute face normal in camera space
+            #NOTE TO SELF IF YOU JUST INDEX INTO THE PREMADE LIST OF NORMALS THAT IS IN WORLD SPACE
+            #THEN CALCULATE LIGHTING FROM THAT SO IT IS WORLD AGAINST WORLD
+            #SO THE LIGHT IS FROM ONE LOCATION
+            # only thing is that you need to dot it against the camera location vector to check for orientation for culling
             v1 = faceCam[1] - faceCam[0]
             v2 = faceCam[2] - faceCam[0]
             faceNormal = np.cross(v1, v2)
             faceNormal = faceNormal / np.linalg.norm(faceNormal)
-
             # cull if facing away and skip faces w vertices behind camera
             if cullOn and faceNormal[2] >= 0:
                 continue
             if (np.any(faceCam[:, 2] <= 0)) | (len(validIndices) <= 2):
                 continue
-
-            # perspective projcetion
-            projected = []   # reset list once a new face is chosen
-            for vertex in faceCam:
-                xVertexCam, yVertexCam, zVertexCam = vertex
-                xScreen = (xVertexCam / zVertexCam) * focalLength + 640
-                yScreen = (yVertexCam / zVertexCam) * focalLength + 360
-                projected.append((int(xScreen), int(yScreen)))
-
-            # check for validity again, and calculate lighting
-            if len(projected) >= 2:
-                lightIntensity = np.dot(faceNormal, lightSource)
-                color = [int(lightIntensity * 255)] * 3
-                try:
-                    if (lightIntensity > 0) & lightingOn:
-                        pygame.draw.polygon(screen, color, projected)
-                    elif not lightingOn:
-                        pygame.draw.polygon(screen, 'grey', projected, 1)
-                except Exception as e:
-                    if debugErrors:
-                        print(
-                            f'Error drawing polygon with points {projected} and color {color}: {e}',
-                            flush=True,
-                        )
+            projectedXY = projectedPointsXY[validIndices]
+            # calculate lighting
+            lightIntensity = np.dot(faceNormal, lightSource)
+            color = [int(lightIntensity * 255)] * 3
+            try:
+                if (lightIntensity > 0) & lightingOn:
+                    pygame.draw.polygon(screen, color, projectedXY)
+                elif not lightingOn:
+                    pygame.draw.polygon(screen, 'grey', projectedXY, 1)
+            except Exception as e:
+                if debugErrors:
+                    print(
+                        f'Error drawing polygon with points {projected} and color {color}: {e}',
+                        flush=True,
+                    )
+    renderTime = time.perf_counter() - t2
+    t3 = time.perf_counter()
     pygame.display.flip()
     clock.tick(60)  # FPS limit
-    fps = int(clock.get_fps())
-    print(f'FPS: {fps}', end='\r', flush=True)
+    displayTime = time.perf_counter() - t3
+    frameTotal = time.perf_counter() - frameStart
+    fps = 1.0 / frameTotal if frameTotal > 0 else 0.0
+    # Print summary every few frames
+    frameCount += 1
+    if frameCount % 30 == 0:
+        if timingPrintOut:
+            print(
+                f"FPS: {fps:6.1f} | "
+                f"Input: {inputTime*1000:5.2f} ms | "
+                f"Transform: {transformTime*1000:5.2f} ms | "
+                f"Render: {renderTime*1000:5.2f} ms | "
+                f"Display: {displayTime*1000:5.2f} ms",
+                flush=True,
+            )
 pygame.quit()
 print('Exiting', flush=True)

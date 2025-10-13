@@ -50,3 +50,29 @@ def twoDimRot(R3CameraCoordinates, angle): #USE RADIANS
     xyVector = xyVector.T
     R3CameraCoordinates[:, [0, 1]] = xyVector
     return R3CameraCoordinates
+
+def sortFacesByDepth(facesArray, cameraPoints):
+        #where facesArray has normal/vertex/texture indices for each vertex in each face
+        #and cameraPoints is the predefined set of transformed vertices in camera space
+
+        #extract face indices
+        validFacesMask = ~np.isnan(facesArray[:, :, 0])
+        faceIndices = np.where(
+            validFacesMask, 
+            facesArray[:, :, 0], 
+            np.nan
+        ) 
+        #convert to int safely
+        faceIndicesInt = np.nan_to_num(faceIndices, nan=-1).astype(int)
+        #Gather corresponding z-values from camPoints
+        #Shape: (numFaces, numVertsPerFace)
+        zValues = np.where(
+            faceIndicesInt >= 0,
+            cameraPoints[faceIndicesInt, 2],
+            np.nan
+        )
+        # Compute average Z per face (ignore NaNs)
+        avgZPerFace = np.nanmean(zValues, axis=1)
+        sortedFaceIndices = np.argsort(avgZPerFace)[::-1]
+        facesSorted = facesArray[sortedFaceIndices]        
+        return facesSorted  
