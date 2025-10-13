@@ -1,9 +1,7 @@
 debug_output.txt
 __pycache__
 __numpyenv__
-__temp__
 temp.py
 profile.svg
-__profile__
 profile_monitoring
-
+*.pyc

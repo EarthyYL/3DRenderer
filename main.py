@@ -14,7 +14,6 @@ import tools.debug_tools as debug_tools
 import tools.parse_tools as parse_tools
 import tools.camera_tools as camera_tools
 import tools.render_tools as render_tools
-debugErrors = True
 debugLogs = False
 
 
@@ -33,12 +32,19 @@ def fileBrowse():   # file dialog function
 root = tk.Tk()
 button = tk.Button(root, text='Browse for OBJ file', command=fileBrowse)
 button.pack(pady=20)
+#lighting button
 lightingOn = tk.IntVar()
 lightingOn.set(True)
 lightButton = tk.Checkbutton(root, text='Enable Lighting', variable=lightingOn)
 lightButton.pack()
+#debug button
+debugErrors = tk.IntVar()
+debugErrors.set(False)
+debugButton = tk.Checkbutton(root, text='Dump debug info to console', variable=debugErrors)
+debugButton.pack()
 root.mainloop()
 lightingOn = lightingOn.get()
+debugErrors = debugErrors.get()
 
 ##PARSE THE FILE
 try:
@@ -121,6 +127,7 @@ lookAt = centerPoint.astype(float)
 worldUp = np.array([0, 0, -1])
 dragging = False
 shiftHeld = False
+lightingStatic = True
 movementScheme = 1
 rotateAndPan = 1
 freeFly = 2
@@ -154,6 +161,8 @@ while running:
                 running = False
             if event.key == pygame.K_m:   # toggle mesh
                 drawMesh = not drawMesh
+            #if event.key == pygame.K_l:
+                #lightingStatic = not lightingStatic
             if event.key == pygame.K_1:
                 movementScheme = rotateAndPan
             if event.key == pygame.K_2:
@@ -234,7 +243,7 @@ while running:
             axesCam = render_tools.twoDimRot(axesCam,angleCamTilt)
         render_tools.drawPoints(axesCam, focalLength, screen, debugErrors)
     if drawMesh:
-        #sort faces by Z so it renders in order
+        #sort faces by Z value (back to front)
         facesSorted = render_tools.sortFacesByDepth(facesArray, camPoints)
         # perspective projection
         camZs = camPoints[:, 2]
@@ -242,42 +251,63 @@ while running:
         xScreen = (camPoints[:, 0] / camZs) * focalLength + 640
         yScreen = (camPoints[:, 1] / camZs) * focalLength + 360
         projectedPointsXY = np.stack([xScreen, yScreen], axis=1).astype(int)
-    
-        for face in facesSorted: 
-            validIndices = face[:, 0][~np.isnan(face[:, 0])].astype(int)
-            if len(validIndices) < 3:
-                continue
-            faceCam = camPoints[validIndices]
-            #compute face normal in camera space
 
-            #NOTE TO SELF IF YOU JUST INDEX INTO THE PREMADE LIST OF NORMALS THAT IS IN WORLD SPACE
-            #THEN CALCULATE LIGHTING FROM THAT SO IT IS WORLD AGAINST WORLD
-            #SO THE LIGHT IS FROM ONE LOCATION
-            # only thing is that you need to dot it against the camera location vector to check for orientation for culling
-            v1 = faceCam[1] - faceCam[0]
-            v2 = faceCam[2] - faceCam[0]
-            faceNormal = np.cross(v1, v2)
-            faceNormal = faceNormal / np.linalg.norm(faceNormal)
-            # cull if facing away and skip faces w vertices behind camera
-            if cullOn and faceNormal[2] >= 0:
+        # extract vertex indices (v), normal indices (vn), and clean them too
+        vertexIdxs = np.nan_to_num(facesSorted[:, :, 0], nan=-1).astype(int)
+        normalIdxs = np.nan_to_num(facesSorted[:, :, 2], nan=-1).astype(int)
+
+        faceVertices = np.where(vertexIdxs[..., None] >= 0,
+                         camPoints[vertexIdxs],
+                         0)
+        # shape: (num of faces, max vertices, xyz coordinates)
+        if lightingStatic:
+        #find normals in camera space
+            v1 = faceVertices[:, 1, :] - faceVertices[:, 0, :]
+            v2 = faceVertices[:, 2, :] - faceVertices[:, 0, :]
+            faceNormals = np.cross(v1, v2)
+        else:
+            # Fetch vertex normals for all faces, then average
+            faceNormalsRaw = np.where(normalIdxs[..., None] >= 0,
+                                        normals[normalIdxs],
+                                        0)
+            faceNormals = np.nanmean(faceNormalsRaw, axis=1)
+        #ensure normalization in either case
+        norm = np.linalg.norm(faceNormals, axis=1, keepdims=True)
+        faceNormals = np.divide(faceNormals, norm)
+        if lightingStatic:
+        # regular Z culling - cull mask is False for invalid faces and True on valids
+            cullMask = ~(cullOn & (faceNormals[:, 2] >= 0))
+        else:
+            view_dir = lookAt - cameraPoint
+            view_dir /= np.linalg.norm(view_dir)
+            dot_view = np.einsum('ij,j->i', faceNormals, view_dir) #fancy way of batch dot product
+            cullMask = ~(cullOn & (dot_view >= 0))
+        #apply culling
+        behindMask = np.any(faceVertices[:, :, 2] <= 0, axis=1)
+        validMask = cullMask & (~behindMask) # combine both culls
+        facesVisible = facesSorted[validMask]
+        normalsVisible = faceNormals[validMask]
+        #calculate light (batch dot product again)
+        lightIntensity = np.einsum('ij,j->i', normalsVisible, lightSource)
+        lightIntensity = np.clip(lightIntensity, 0, 1)
+
+        #draw faces
+        for faceIdx, face in enumerate(facesVisible):
+            valid_indices = face[:, 0][~np.isnan(face[:, 0])].astype(int)
+            if len(valid_indices) < 3:
                 continue
-            if (np.any(faceCam[:, 2] <= 0)) | (len(validIndices) <= 2):
-                continue
-            projectedXY = projectedPointsXY[validIndices]
-            # calculate lighting
-            lightIntensity = np.dot(faceNormal, lightSource)
-            color = [int(lightIntensity * 255)] * 3
+            projectedXY = projectedPointsXY[valid_indices]
+            intensity = lightIntensity[faceIdx]
+            color = [int(intensity * 255)] * 3
             try:
-                if (lightIntensity > 0) & lightingOn:
+                if (intensity > 0) and lightingOn:
                     pygame.draw.polygon(screen, color, projectedXY)
                 elif not lightingOn:
                     pygame.draw.polygon(screen, 'grey', projectedXY, 1)
             except Exception as e:
                 if debugErrors:
-                    print(
-                        f'Error drawing polygon with points {projected} and color {color}: {e}',
-                        flush=True,
-                    )
+                    print(f"Error drawing polygon {faceIdx}: {e}", flush=True)
+
     renderTime = time.perf_counter() - t2
     t3 = time.perf_counter()
     pygame.display.flip()

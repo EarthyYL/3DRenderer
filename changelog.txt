@@ -29,3 +29,7 @@ Set framework to add free fly control scheme
 10/12:
 Implemented painter's algorithm for proper rendering of more complex structures
 Began the process of optimizing rendering processes
+10/13:
+HUGE optimization with rendering meshes
+Vectorized the bulk of the indexing, culling, and lighting operations
+Per-frame time decreased by a factor of 10
