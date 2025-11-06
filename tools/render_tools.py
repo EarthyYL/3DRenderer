@@ -75,4 +75,4 @@ def sortFacesByDepth(facesArray, cameraPoints):
         avgZPerFace = np.nanmean(zValues, axis=1)
         sortedFaceIndices = np.argsort(avgZPerFace)[::-1]
         facesSorted = facesArray[sortedFaceIndices]        
-        return facesSorted  
+        return facesSorted.astype(np.float32)  

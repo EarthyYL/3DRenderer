@@ -1,15 +1,11 @@
 To do (10/6):
-Add different culling option for non-enclosed objects
-Make it so that you rotate around the object instead of feeling like the object rotates on a point 
-(comes from mixing world-view lighting vector and camera-view face normal vectors)
-Find a way to deal with objects that have multiple layers below the camera (better culling again)
 Try to improve performance when handling objects with many many vertices
 Add free-fly control scheme
-Transparent view?
+Transparent view? (probably too slow)
 Clean up functions, organizational overhaul (1/2 done)
-Experiment with spherical coordinates and/or quaternion rotation  (not working so far, finding other stuff works fine though)
 Consider adding different file types
 Add option to change values after program is running by opening settings GUI
+See about using something like CuPy or OpenGL to offload more ops to GPU
 
 
 Changelog 
@@ -33,3 +29,5 @@ Began the process of optimizing rendering processes
 HUGE optimization with rendering meshes
 Vectorized the bulk of the indexing, culling, and lighting operations
 Per-frame time decreased by a factor of 10
+10/20:
+Fixed lighting not rendering fully unlit polygons
