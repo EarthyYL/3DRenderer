@@ -54,13 +54,9 @@ lightingOn = lightingOn.get()
 debugErrors = debugErrors.get()
 
 ##PARSE THE FILE
-try:
-    vertices, normals, facesArray, centerPoint = parse_tools.parseOBJFile(
-        filePath, debugErrors
+vertices, normals, facesArray, centerPoint = parse_tools.parseOBJFileTriangulator(
+    filePath, debugErrors
     )
-except Exception as e:
-    print(f'File error: {e}, exiting')
-    exit()
 if debugLogs:
     debug_tools.writeFacesArrayToFile(
         facesArray, 'debug_output.txt'
@@ -256,15 +252,14 @@ while running:
         xScreen = (camPoints[:, 0] / camZs) * focalLength + 640
         yScreen = (camPoints[:, 1] / camZs) * focalLength + 360
         projectedPointsXY = np.stack([xScreen, yScreen], axis=1).astype(int)
-
         # extract vertex indices (v), normal indices (vn), and clean them too (replace nan w -1)
-        vertexIdxs = np.nan_to_num(facesSorted[:, :, 0], nan=-1).astype(int)
-        normalIdxs = np.nan_to_num(facesSorted[:, :, 2], nan=-1).astype(int)
+        vertexIdxs = facesSorted[:, :, 0].astype(int)
+        normalIdxs = facesSorted[:, :, 2].astype(int)
         # where Idxs exist, pull from camPoints and put coords into faceVertices, otherwise put 0
         faceVertices = np.where(
             vertexIdxs[..., None] >= 0, camPoints[vertexIdxs], 0
         )
-        # shape: (num of faces, max vertices, xyz coordinates (3 layer))
+        # shape: (num of faces, max vertices (3), xyz coordinates (3 layer))
         if lightingStatic:
             # find normals in camera space
             v1 = faceVertices[:, 1, :] - faceVertices[:, 0, :]

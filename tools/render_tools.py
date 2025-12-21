@@ -76,3 +76,19 @@ def sortFacesByDepth(facesArray, cameraPoints):
         sortedFaceIndices = np.argsort(avgZPerFace)[::-1]
         facesSorted = facesArray[sortedFaceIndices]        
         return facesSorted.astype(np.float32)  
+def sortCleanFacesByDepth(facesArray, cameraPoints): # for triangulated, cleaned faces only
+        # facesArray shape: (num_triangles, 3, 3)
+        # each layer is [[v_index, vt_index, vn_index][v_index, vt_index, vn_index][v_index, vt_index, vn_index]
+        #and cameraPoints is the predefined set of transformed vertices in camera space
+
+        #extract face indices
+        faceIndices =  facesArray[:, :, 0], 
+        faceIndicesInt = faceIndices.astype(np.int32) #safe to convert directly since cleaned faces only
+        #Gather corresponding z-values from camPoints
+        #Shape: (numFaces, numVertsPerFace)
+        zValues = cameraPoints[faceIndicesInt, 2],
+        # Compute average Z per face 
+        avgZPerFace = np.nanmean(zValues, axis=1)
+        sortedFaceIndices = np.argsort(avgZPerFace)[::-1]
+        facesSorted = facesArray[sortedFaceIndices]        
+        return facesSorted.astype(np.int32)  

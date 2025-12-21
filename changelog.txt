@@ -31,3 +31,5 @@ Vectorized the bulk of the indexing, culling, and lighting operations
 Per-frame time decreased by a factor of 10
 10/20:
 Fixed lighting not rendering fully unlit polygons
+12/20:
+Switching off pygame polygon draw to manual rasterization
