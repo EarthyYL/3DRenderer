@@ -81,5 +81,5 @@ def parseOBJFile(filePath: str, debugErrors: bool):
             flush=True,
         )
         print('File Closed Successfully', flush=True)
-    return vertices.astype(np.float32), normals.astype(np.float32), facesArray.astype(np.int32), centerPoint.astype(np.float32)
+    return vertices.astype(np.float32), normals.astype(np.float32), facesArray, centerPoint.astype(np.float32)
 #array of vertex coords, normal vectors, indices to both, and a central point, respectively

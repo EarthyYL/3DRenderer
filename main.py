@@ -257,14 +257,14 @@ while running:
         yScreen = (camPoints[:, 1] / camZs) * focalLength + 360
         projectedPointsXY = np.stack([xScreen, yScreen], axis=1).astype(int)
 
-        # extract vertex indices (v), normal indices (vn), and clean them too
+        # extract vertex indices (v), normal indices (vn), and clean them too (replace nan w -1)
         vertexIdxs = np.nan_to_num(facesSorted[:, :, 0], nan=-1).astype(int)
         normalIdxs = np.nan_to_num(facesSorted[:, :, 2], nan=-1).astype(int)
-
+        # where Idxs exist, pull from camPoints and put coords into faceVertices, otherwise put 0
         faceVertices = np.where(
             vertexIdxs[..., None] >= 0, camPoints[vertexIdxs], 0
         )
-        # shape: (num of faces, max vertices, xyz coordinates)
+        # shape: (num of faces, max vertices, xyz coordinates (3 layer))
         if lightingStatic:
             # find normals in camera space
             v1 = faceVertices[:, 1, :] - faceVertices[:, 0, :]
@@ -279,6 +279,7 @@ while running:
         # ensure normalization in either case
         norm = np.linalg.norm(faceNormals, axis=1, keepdims=True)
         faceNormals = np.divide(faceNormals, norm)
+
         t22 = time.perf_counter()
         projectSortNormalTime = t22 - t21
 
@@ -293,15 +294,18 @@ while running:
             )   # fancy way of batch dot product
             cullMask = ~(cullOn & (dot_view >= 0))
         # apply culling
-        behindMask = np.any(faceVertices[:, :, 2] <= 0, axis=1)
-        validMask = cullMask & (~behindMask)   # combine both culls
+        # look "left/right" across each face's Z values and see if any are negative (behind cam)
+        behindMask = np.any(faceVertices[:, :, 2] <= 0, axis=1) #remember axis=1 is referring to the 2D matrix gained from indexing
+        validMask = cullMask & (~behindMask)   # combine both culls (in the shape of a row vector [True False True..etc.])
         facesVisible = facesSorted[validMask]
         normalsVisible = faceNormals[validMask]
         # calculate light (batch dot product again)
         lightIntensity = np.einsum('ij,j->i', normalsVisible, lightSource)
         lightIntensity = np.clip(lightIntensity, 0.001, 1)
+
         t23 = time.perf_counter()
         cullAndLightTime = t23-t22
+        
         # draw faces
         for faceIdx, face in enumerate(facesVisible):
             valid_indices = face[:, 0][~np.isnan(face[:, 0])].astype(int)
@@ -329,20 +333,18 @@ while running:
     fps = 1.0 / frameTotal if frameTotal > 0 else 0.0
     # Print summary every few frames
     frameCount += 1
-    if frameCount % 30 == 0:
+    if frameCount % 10 == 0:
         if timingPrintOut:
             print(
-                f'FPS: {fps:6.1f} | '
+                f'\rFPS: {fps:6.1f} | '
                 f'Input: {inputTime*1000:5.2f} ms | '
                 f'Transform: {transformTime*1000:5.2f} ms | '
-                f'Render: {renderTime*1000:5.2f} ms | '
+                f'Point Math: {projectSortNormalTime*1000:5.2f} ms | '
+                f'Light/Cull: {cullAndLightTime*1000:5.2f} ms | '
+                f'Draw: {drawTime*1000:5.2f} ms | '
                 f'Display: {displayTime*1000:5.2f} ms',
-                flush=True,
-            )
-            print(
-                f'Projection/Sort/Normals: {projectSortNormalTime*1000:5.2f} ms | '
-                f'Culling/Lighting: {cullAndLightTime*1000:5.2f} ms | '
-                f'Drawing: {drawTime*1000:5.2f} ms | '
+                end='',
+                flush=True
             )
 pygame.quit()
-print('Exiting', flush=True)
+print('\nExiting', flush=True)

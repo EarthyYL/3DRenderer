@@ -1,5 +1,4 @@
 Personal project - simple 3D renderer in Python for .obj files
-For my own learning; I wanted to do it from scratch so it's not very efficient 
 
 Click to rotate, shift-click to pan
 Scroll to zoom
