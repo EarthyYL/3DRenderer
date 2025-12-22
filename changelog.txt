@@ -1,6 +1,7 @@
-To do (10/6):
-Try to improve performance when handling objects with many many vertices
-Add free-fly control scheme
+To do (12/21):
+1. Optimize the draw-stage bottleneck - indexing changes needed
+2. Add free-fly control scheme
+3. Add feat to change values after program is running by opening settings GUI
 Transparent view? (probably too slow)
 Clean up functions, organizational overhaul (1/2 done)
 Consider adding different file types
@@ -33,3 +34,5 @@ Per-frame time decreased by a factor of 10
 Fixed lighting not rendering fully unlit polygons
 12/20:
 Switching off pygame polygon draw to manual rasterization
+12/21:
+Manual rasterization is incredibly slow, reverted changes

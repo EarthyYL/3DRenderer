@@ -90,7 +90,7 @@ dragMoveSpeed = 0.01
 panMoveSpeed = 2
 zoomSpeed = 0.1
 rotateSpeed = 5   # deg per frame
-lightSource = [1, 0, 0]
+lightSource = [0, 0, -1] # lit from camera direction
 timingPrintOut = True
 
 # non configuration initliazation
@@ -302,18 +302,20 @@ while running:
         cullAndLightTime = t23-t22
         
         # draw faces
-        for faceIdx, face in enumerate(facesVisible):
-            valid_indices = face[:, 0][~np.isnan(face[:, 0])].astype(int)
-            if len(valid_indices) < 3:
-                continue
-            projectedXY = projectedPointsXY[valid_indices]
-            intensity = lightIntensity[faceIdx]
+        # find projected points per face
+        vertexIdxsAll = facesSorted[:, :, 0].astype(int)
+        facesProjectedXY = np.zeros((facesSorted.shape[0], 3, 2), dtype=np.int32) # shape: (num_faces, 3 vertices, 2 coords)
+        mask = vertexIdxsAll >= 0
+        facesProjectedXY[mask] = projectedPointsXY[vertexIdxsAll[mask]] # invald indices remain (0,0)
+        for faceIdx, faceXY in enumerate(facesProjectedXY[validMask]): # only iterate visible faces
+            intensity = lightIntensity[faceIdx] # get light intensity for this face 
+            #(invalid faces are still inside, just as 0,0 -> order is preserved)
             color = [int(intensity * 255)] * 3
             try:
                 if lightingOn:
-                    pygame.draw.polygon(screen, color, projectedXY)
+                    pygame.draw.polygon(screen, color, faceXY)
                 elif not lightingOn:
-                    pygame.draw.polygon(screen, 'grey', projectedXY, 1)
+                    pygame.draw.polygon(screen, 'grey', faceXY, 1)
             except Exception as e:
                 if debugErrors:
                     print(f'Error drawing polygon {faceIdx}: {e}', flush=True)
