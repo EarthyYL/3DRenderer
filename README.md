@@ -1,4 +1,4 @@
-Personal project - simple 3D renderer in Python for .obj files
+Personal project - simple real-time 3D renderer in Python for .obj files
 
 Click to rotate, shift-click to pan
 Scroll to zoom

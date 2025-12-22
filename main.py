@@ -297,7 +297,8 @@ while running:
         # calculate light (batch dot product again)
         lightIntensity = np.einsum('ij,j->i', normalsVisible, lightSource)
         lightIntensity = np.clip(lightIntensity, 0.001, 1)
-
+        colors = (lightIntensity * 255).astype(np.uint8)
+        colors = np.stack([colors, colors, colors], axis=1) # b&w in RGB format
         t23 = time.perf_counter()
         cullAndLightTime = t23-t22
         
@@ -308,17 +309,11 @@ while running:
         mask = vertexIdxsAll >= 0
         facesProjectedXY[mask] = projectedPointsXY[vertexIdxsAll[mask]] # invald indices remain (0,0)
         for faceIdx, faceXY in enumerate(facesProjectedXY[validMask]): # only iterate visible faces
-            intensity = lightIntensity[faceIdx] # get light intensity for this face 
-            #(invalid faces are still inside, just as 0,0 -> order is preserved)
-            color = [int(intensity * 255)] * 3
-            try:
-                if lightingOn:
-                    pygame.draw.polygon(screen, color, faceXY)
-                elif not lightingOn:
-                    pygame.draw.polygon(screen, 'grey', faceXY, 1)
-            except Exception as e:
-                if debugErrors:
-                    print(f'Error drawing polygon {faceIdx}: {e}', flush=True)
+            color = colors[faceIdx] # get color for this face (invalid faces are still inside, just marked as 0,0 -> order is preserved)
+            if lightingOn:
+                pygame.draw.polygon(screen, color, faceXY)
+            elif not lightingOn:
+                pygame.draw.polygon(screen, 'grey', faceXY, 1)
         drawTime = time.perf_counter()-t23
         
     renderTime = time.perf_counter() - t2

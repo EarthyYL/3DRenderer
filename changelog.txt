@@ -8,6 +8,13 @@ Consider adding different file types
 Add option to change values after program is running by opening settings GUI
 See about using something like CuPy or OpenGL to offload more ops to GPU
 
+Performance tracking:
+In 50k face scene
+50ms/frame overall
+~11ms/frame on Project/Sort/Normals
+~34ms/frame on draw calls
+Others negligible
+
 
 Changelog 
 10/4:
