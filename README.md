@@ -9,3 +9,5 @@ Press M to toggle between mesh and vertex display
 Example photo:
 
 <img width="715" height="609" alt="example" src="https://github.com/user-attachments/assets/ff3bcded-c299-4f61-b320-bf500e56750e" />
+
+This was deliberately made without the use of GPU APIs like OpenGL - this project was for learning Python, not for learning graphics

@@ -1,21 +1,3 @@
-To do (12/21):
-1. Add free-fly control scheme
-2. Add feat to change values after program is running by opening settings GUI
-3. Auto orbit
-Transparent view? (probably too slow)
-Clean up functions, organizational overhaul (1/2 done)
-Consider adding different file types
-Add option to change values after program is running by opening settings GUI
-See about using something like CuPy or OpenGL to offload more ops to GPU
-
-Performance tracking:
-In 50k face scene
-50ms/frame overall
-~11ms/frame on Project/Sort/Normals
-~34ms/frame on draw calls
-Others negligible
-
-
 Changelog 
 10/4:
 Fixed camera getting stuck with mesh on
